@@ -1,0 +1,224 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum Role {
+  OWNER
+  USER
+  ADMIN
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  role          Role      @default(USER)
+  groups        String[]
+  teams         UsersOnTeams[]
+
+  accounts Account[]
+  sessions Session[]
+}
+
+model Team {
+  id            String    @id @default(cuid())
+  name          String    @unique
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  users         UsersOnTeams[]
+  displayGroups DisplayGroupsOnTeams[]
+  invites       TeamInvite[]
+}
+
+model DisplayGroup {
+  id                String    @id @default(cuid())
+  name              String    @unique
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  useSharedTimeline Boolean   @default(false)
+  timelineBasisTime DateTime  @default(now())
+
+  displays Display[]
+
+  teams DisplayGroupsOnTeams[]
+}
+
+model Display {
+  id                Int        @id @default(autoincrement())
+  name              String
+  description       String?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  timelineBasisTime DateTime   @default(now())
+  image             String?
+  transitionType    String     @default("fade") // e.g., "fade", "slide", "none"
+  transitionDuration Int       @default(500)    // in milliseconds
+  showQrCode        Boolean    @default(false)
+
+  displayGroupId String
+  displayGroup   DisplayGroup @relation(fields: [displayGroupId], references: [id], onDelete: Cascade)
+
+  slides  Slide[]
+  clients DisplayClient[] // Add relation to clients
+  assets  DisplayAsset[]
+  presentationSources PresentationSource[]
+
+  @@unique([displayGroupId, name])
+}
+
+enum SlideType {
+  IMAGE
+  VIDEO
+  HTML
+}
+
+model Slide {
+  id         Int       @id @default(autoincrement())
+  order      Int       // To determine the sequence of slides
+  type       SlideType
+  contentUrl String    // URL to the content in S3
+  isHidden   Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  duration   Int       @default(10) // Duration in seconds for each slide
+  linkUrl    String?
+
+  displayId Int
+  display   Display   @relation(fields: [displayId], references: [id], onDelete: Cascade)
+
+  @@unique([displayId, order])
+}
+
+model DisplayAsset {
+  id        String   @id @default(cuid())
+  filename  String
+  s3Path    String   @unique
+  createdAt DateTime @default(now())
+  displayId Int
+  display   Display  @relation(fields: [displayId], references: [id], onDelete: Cascade)
+
+  @@index([displayId])
+  @@unique([displayId, filename])
+}
+
+model PresentationSource {
+  id        String   @id @default(cuid())
+  filename  String
+  s3Path    String   @unique
+  mimeType  String
+  createdAt DateTime @default(now())
+  displayId Int
+  display   Display  @relation(fields: [displayId], references: [id], onDelete: Cascade)
+
+  @@index([displayId])
+}
+
+// below are join tables for many-to-many associations
+
+model UsersOnTeams {
+  // Relation to the User model
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  teamId String
+
+  assignedAt DateTime @default(now())
+
+  @@id([userId, teamId])
+}
+
+model TeamInvite {
+  id        String   @id @default(cuid())
+  email     String
+  createdAt DateTime @default(now())
+
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  teamId String
+
+  @@unique([email, teamId])
+}
+
+model DisplayGroupsOnTeams {
+  displayGroup   DisplayGroup @relation(fields: [displayGroupId], references: [id], onDelete: Cascade)
+  displayGroupId String
+
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  teamId String
+
+  assignedAt DateTime @default(now())
+
+  @@id([displayGroupId, teamId])
+}
+
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model DisplayClient {
+  id           String    @id @default(uuid())
+  friendlyName String?
+  lastSeen     DateTime  @updatedAt
+  userAgent    String?
+  lastKnownIp  String?
+  createdAt    DateTime  @default(now())
+
+  displayId Int
+  display   Display   @relation(fields: [displayId], references: [id], onDelete: Cascade)
+
+  @@index([displayId])
+}
+
+model ApkVersion {
+  id        String   @id @default(cuid())
+  version   String   @unique
+  filename  String
+  s3Path    String   @unique
+  isPinned  Boolean  @default(false)
+  createdAt DateTime @default(now())
+}

@@ -1,0 +1,103 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Type-check & build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Type check
+        run: npm run check
+
+      - name: Build
+        run: npm run build
+
+      # NOTE: The codebase carries pre-existing lint/format debt (unused vars,
+      # explicit `any`, missing #each keys) that predates this workflow. It is
+      # reported here for visibility but does not fail the build. Remove
+      # `continue-on-error` once the remaining issues are cleaned up.
+      - name: Lint (advisory)
+        continue-on-error: true
+        run: npm run lint
+
+  e2e:
+    name: End-to-end tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: relaypoint
+          POSTGRES_PASSWORD: ***
+          POSTGRES_DB: relaypoint
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U relaypoint"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://relaypoint:ci@localhost:5432/relaypoint?schema=public
+      AUTH_SECRET: ci-onl
+      AUTH_TRUST_HOST: "true"
+      AUTH_PROVIDERS: ""
+      ORIGIN: http://localhost:4173
+      APP_URL: http://localhost:4173
+      PUBLIC_S3_ENDPOINT: http://localhost:9000
+      PUBLIC_S3_BUCKET_NAME: relaypoint
+      PUBLIC_S3_REGION: us-east-1
+      S3_ACCESS_KEY: ***
+      S3_SECRET_KEY: ***
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Apply database migrations
+        run: npx prisma migrate deploy
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run end-to-end tests
+        run: npm run test
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

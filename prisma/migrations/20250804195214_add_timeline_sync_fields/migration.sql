@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "Display" ADD COLUMN     "timelineBasisTime" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
+-- AlterTable
+ALTER TABLE "DisplayGroup" ADD COLUMN     "timelineBasisTime" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ADD COLUMN     "useSharedTimeline" BOOLEAN NOT NULL DEFAULT false;

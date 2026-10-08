@@ -1,0 +1,9 @@
+<script lang="ts">
+	import { Tabs as TabsPrimitive } from 'bits-ui';
+	let {
+		ref = $bindable(null),
+		...restProps
+	}: TabsPrimitive.RootProps = $props();
+</script>
+
+<TabsPrimitive.Root bind:ref {...restProps} />
