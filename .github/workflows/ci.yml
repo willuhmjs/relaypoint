@@ -50,8 +50,10 @@ jobs:
         image: postgres:17
         env:
           POSTGRES_USER: relaypoint
-          POSTGRES_PASSWORD: "ci_password"
           POSTGRES_DB: relaypoint
+          # Trust auth: this is a throwaway CI database, so no password is set
+          # and none appears in the connection URL below.
+          POSTGRES_HOST_AUTH_METHOD: trust
         ports:
           - 5432:5432
         options: >-
