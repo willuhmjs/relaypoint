@@ -62,7 +62,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      DATABASE_URL: postgres://relaypoint:ci_password@localhost:5432/relaypoint?schema=public
+      DATABASE_URL: postgres://relaypoint@localhost:5432/relaypoint?schema=public
       AUTH_SECRET: "ci_only_value_not_a_real_secret"
       AUTH_TRUST_HOST: "true"
       AUTH_PROVIDERS: ""
