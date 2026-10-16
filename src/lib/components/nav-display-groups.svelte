@@ -1,24 +1,11 @@
 <script lang="ts">
 	import * as Collapsible from '$lib/components/ui/collapsible/index.js';
-	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
-	import { useSidebar } from '$lib/components/ui/sidebar/context.svelte.js';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
-	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
 	import FolderIcon from '@lucide/svelte/icons/folder';
-	import ForwardIcon from '@lucide/svelte/icons/forward';
-	import Trash2Icon from '@lucide/svelte/icons/trash-2';
-	import type { DisplayGroup } from '@prisma/client';
-	import type { User } from '@prisma/client';
-	import { getContext } from 'svelte';
-	import Button from './ui/button/button.svelte';
+	import type { DisplayGroupWithRelations } from '$lib/stores/dashboardStore';
 
-	const user = getContext<User | null>('user');
-
-	const { displayGroups } = $props();
-
-	// let user = $props();
-	const sidebar = useSidebar();
+	const { displayGroups }: { displayGroups: DisplayGroupWithRelations[] } = $props();
 </script>
 
 <Sidebar.Group>
@@ -35,7 +22,7 @@
 									<FolderIcon />
 									<span class="group-data-[collapsible=icon]:hidden">{group.name}</span>
 									<ChevronRightIcon
-										class="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90 group-data-[collapsible=icon]:hidden"
+										class="ml-auto transition-transform duration-200 group-data-[collapsible=icon]:hidden group-data-[state=open]/collapsible:rotate-90"
 									/>
 								</Sidebar.MenuButton>
 							{/snippet}
@@ -65,7 +52,5 @@
 		{:else}
 			<p class="subtle w-full p-1 text-center text-xs font-thin italic">No display groups</p>
 		{/if}
-
-		
 	</Sidebar.Menu>
 </Sidebar.Group>

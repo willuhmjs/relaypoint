@@ -1,26 +1,16 @@
 <script lang="ts">
 	import * as Collapsible from '$lib/components/ui/collapsible/index.js';
-	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
-	import { useSidebar } from '$lib/components/ui/sidebar/context.svelte.js';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
-	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
 	import FolderIcon from '@lucide/svelte/icons/folder';
-	import ForwardIcon from '@lucide/svelte/icons/forward';
-	import Trash2Icon from '@lucide/svelte/icons/trash-2';
-	import type { DisplayGroup } from '@prisma/client';
-	import type { User } from '@prisma/client';
+	import type { DisplayGroup, Team, User } from '@prisma/client';
 	import { getContext } from 'svelte';
 	import Button from './ui/button/button.svelte';
 	import { page } from '$app/stores';
-	import type { Team } from '@prisma/client';
 
 	const user = getContext<User | null>('user');
 
-	const { displayGroups, teams }: { displayGroups: DisplayGroup[]; teams: any } = $props();
-
-	// let user = $props();
-	const sidebar = useSidebar();
+	const { displayGroups, teams }: { displayGroups: DisplayGroup[]; teams: Team[] } = $props();
 </script>
 
 <Sidebar.Group>
@@ -35,7 +25,7 @@
 								<FolderIcon />
 								<span class="group-data-[collapsible=icon]:hidden">Teams</span>
 								<ChevronRightIcon
-									class="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90 group-data-[collapsible=icon]:hidden"
+									class="ml-auto transition-transform duration-200 group-data-[collapsible=icon]:hidden group-data-[state=open]/collapsible:rotate-90"
 								/>
 							</Sidebar.MenuButton>
 						{/snippet}
@@ -54,7 +44,13 @@
 						{/if}
 					</Sidebar.MenuSub>
 
-					<Button type="button" variant="outline" class="w-full" size="sm" href="/dash/teams/create">
+					<Button
+						type="button"
+						variant="outline"
+						class="w-full"
+						size="sm"
+						href="/dash/teams/create"
+					>
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
 							width="1024"
@@ -78,7 +74,7 @@
 								<FolderIcon />
 								<span class="group-data-[collapsible=icon]:hidden">Display Groups</span>
 								<ChevronRightIcon
-									class="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90 group-data-[collapsible=icon]:hidden"
+									class="ml-auto transition-transform duration-200 group-data-[collapsible=icon]:hidden group-data-[state=open]/collapsible:rotate-90"
 								/>
 							</Sidebar.MenuButton>
 						{/snippet}
@@ -97,7 +93,13 @@
 						{/if}
 					</Sidebar.MenuSub>
 
-					<Button type="button" variant="outline" class="w-full" size="sm" href="/dash/groups/create">
+					<Button
+						type="button"
+						variant="outline"
+						class="w-full"
+						size="sm"
+						href="/dash/groups/create"
+					>
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
 							width="1024"
