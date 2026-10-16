@@ -34,10 +34,16 @@ function enabledProviderIds(): string[] {
 	return publicEnv.PUBLIC_AUTH_PROVIDER_KEYCLOAK_ENABLED === 'true' ? ['keycloak'] : [];
 }
 
-// Relaypoint reads a `groups` claim off the Keycloak profile to drive the
-// "syskids" auto-admin group check in auth.ts. That claim is specific to how
-// this deployment's Keycloak realm is configured, so it's only applied to
-// the `keycloak` provider, not to other providers users might configure.
+/** True when any OAuth/OIDC provider is configured via env (used to decide
+ * whether local email/password accounts should default to enabled). */
+export function hasAnyConfiguredProvider(): boolean {
+	return enabledProviderIds().length > 0 || !!env.AUTH_CUSTOM_OIDC_ISSUER;
+}
+
+// Keycloak commonly returns a `groups` claim; keeping it on the profile lets
+// the `AUTH_ADMIN_GROUP` auto-promotion check in auth.ts read it (that check
+// is env-gated and off unless AUTH_ADMIN_GROUP is configured). Applied only
+// to the `keycloak` provider, not to other providers users might configure.
 function withKeycloakProfileMapping(provider: OAuthConfig<any>): OAuthConfig<any> {
 	return {
 		...provider,
@@ -53,7 +59,10 @@ function withKeycloakProfileMapping(provider: OAuthConfig<any>): OAuthConfig<any
 				role: profile.role
 			};
 		},
-		allowDangerousEmailAccountLinking: true
+		// Off by default: linking accounts by unverified email lets whoever
+		// controls a second IdP claim an existing RelayPoint account. Opt in
+		// only when every enabled provider verifies its email addresses.
+		allowDangerousEmailAccountLinking: env.AUTH_ALLOW_EMAIL_ACCOUNT_LINKING === 'true'
 	};
 }
 

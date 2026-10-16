@@ -25,7 +25,10 @@ try {
 		const key = trimmed.slice(0, eqIdx).trim();
 		let value = trimmed.slice(eqIdx + 1).trim();
 		// Strip surrounding quotes
-		if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+		if (
+			(value.startsWith('"') && value.endsWith('"')) ||
+			(value.startsWith("'") && value.endsWith("'"))
+		) {
 			value = value.slice(1, -1);
 		}
 		// Expand ${VAR} references using already-set env vars
@@ -42,7 +45,9 @@ if (!DATABASE_URL || DATABASE_URL.includes('dummy')) {
 	process.exit(1);
 }
 
-const ROLES = ['ADMIN', 'OWNER', 'USER'] as const;
+// The schema enum still contains a legacy OWNER value, but the application
+// only ever evaluates ADMIN vs USER, so the manager offers just those two.
+const ROLES = ['ADMIN', 'USER'] as const;
 type Role = (typeof ROLES)[number];
 
 const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -122,7 +127,9 @@ async function main() {
 
 		// Select target role
 		console.log(`Available roles: ${ROLES.map((r, i) => `${i + 1}) ${r}`).join('  ')}`);
-		const roleInput = (await ask(`${BOLD}New role [default: ADMIN]: ${RESET}`)).trim().toUpperCase();
+		const roleInput = (await ask(`${BOLD}New role [default: ADMIN]: ${RESET}`))
+			.trim()
+			.toUpperCase();
 		const newRole: Role = (ROLES.find((r) => r === roleInput) ?? 'ADMIN') as Role;
 
 		if (newRole === target.role) {
@@ -144,8 +151,24 @@ async function main() {
 			return;
 		}
 
+		// Guard against locking everyone out of the admin area.
+		if (newRole !== 'ADMIN' && target.role === 'ADMIN') {
+			const { rows } = await client.query<{ n: number }>(
+				`SELECT count(*)::int AS n FROM "User" WHERE role = 'ADMIN' AND id <> $1`,
+				[target.id]
+			);
+			if (rows[0].n === 0) {
+				console.error(
+					`\n${RED}Refusing:${RESET} this is the only ADMIN account. Promote someone else first.\n`
+				);
+				return;
+			}
+		}
+
 		await client.query('UPDATE "User" SET role = $1 WHERE id = $2', [newRole, target.id]);
-		console.log(`\n${GREEN}${BOLD}Done.${RESET} ${target.email} is now ${GREEN}${newRole}${RESET}.\n`);
+		console.log(
+			`\n${GREEN}${BOLD}Done.${RESET} ${target.email} is now ${GREEN}${newRole}${RESET}.\n`
+		);
 	} finally {
 		await client.end();
 		rl.close();
