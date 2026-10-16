@@ -23,7 +23,9 @@ export async function GET({ params }) {
 
 	// 2. Determine the correct basis timestamp for the timeline
 	const isInSyncedGroup = display.displayGroup?.useSharedTimeline === true;
-	const basisTime = isInSyncedGroup ? display.displayGroup.timelineBasisTime : display.timelineBasisTime;
+	const basisTime = isInSyncedGroup
+		? display.displayGroup.timelineBasisTime
+		: display.timelineBasisTime;
 
 	// 3. Build the response — send raw timelineBasisTime so clients compute
 	// their own position using NTP-corrected clocks

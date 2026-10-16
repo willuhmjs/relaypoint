@@ -1,6 +1,12 @@
 import type { PageServerLoad, Actions } from './$types';
 import { prisma } from '$lib/server/prisma/prismaConnection';
-import { redirect, fail } from '@sveltejs/kit';
+import { redirect, fail, error } from '@sveltejs/kit';
+
+// Framework control-flow (HttpError, Redirect) must never be swallowed by
+// catch blocks that convert unknown errors into a 500.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const isFrameworkError = (e: any): boolean =>
+	!!e && typeof e === 'object' && 'status' in e && ('body' in e || 'location' in e);
 import { actionHelper } from '$lib/server/actionHelper';
 import { z } from 'zod';
 
@@ -29,7 +35,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		});
 
 		if (!team) {
-			return fail(404, { message: 'Team not found' });
+			// `fail()` is only valid in actions; in `load` it must be `error()`.
+			error(404, 'Team not found');
 		}
 
 		const user = await prisma.user.findUnique({
@@ -60,9 +67,10 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		});
 
 		return { team, allUsers };
-	} catch (error) {
-		console.error(error);
-		return fail(500, { message: 'An internal server error occurred.' });
+	} catch (e) {
+		if (isFrameworkError(e)) throw e;
+		console.error(e);
+		error(500, 'An internal server error occurred.');
 	}
 };
 
@@ -73,8 +81,14 @@ export const actions: Actions = {
 				.string()
 				.min(1, { message: 'Name cannot be empty' })
 				.max(100, { message: 'Name cannot exceed 100 characters' }),
-			userIds: z.string().transform((str) => JSON.parse(str) as string[]).optional(),
-			invitedEmails: z.string().transform((str) => JSON.parse(str) as string[]).optional()
+			userIds: z
+				.string()
+				.transform((str) => JSON.parse(str) as string[])
+				.optional(),
+			invitedEmails: z
+				.string()
+				.transform((str) => JSON.parse(str) as string[])
+				.optional()
 		}),
 		async ({ name, userIds, invitedEmails }, { locals, params }) => {
 			const session = await locals.auth();
@@ -191,7 +205,9 @@ export const actions: Actions = {
 						});
 					}
 
-					const existingEmailSet = new Set(existingUsersForEmails.map((u) => u.email!.toLowerCase()));
+					const existingEmailSet = new Set(
+						existingUsersForEmails.map((u) => u.email!.toLowerCase())
+					);
 					const pendingEmails = normalizedEmails.filter((email) => !existingEmailSet.has(email));
 
 					// Replace the team's pending invites with the submitted set

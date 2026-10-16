@@ -119,7 +119,7 @@ export const actions: Actions = {
 				data: { isPinned: pinned }
 			});
 			return { success: true };
-		} catch (error) {
+		} catch {
 			return fail(500, { error: 'Failed to toggle pin status' });
 		}
 	},
@@ -151,7 +151,7 @@ export const actions: Actions = {
 				});
 			}
 			return { success: 'Version deleted' };
-		} catch (error) {
+		} catch {
 			return fail(500, { error: 'Failed to delete version' });
 		}
 	}

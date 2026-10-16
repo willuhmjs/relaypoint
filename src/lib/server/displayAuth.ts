@@ -46,7 +46,9 @@ export async function assertCanEditDisplay(
 	if (!display) {
 		throw error(404, 'Display not found');
 	}
-	if (!(await userCanAccessDisplayGroup(session.user.id, session.user.role, display.displayGroupId))) {
+	if (
+		!(await userCanAccessDisplayGroup(session.user.id, session.user.role, display.displayGroupId))
+	) {
 		throw error(403, 'You do not have permission to access this display');
 	}
 	return display;

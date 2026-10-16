@@ -43,9 +43,7 @@ export const POST: RequestHandler = async (event) => {
 		}
 	} else {
 		try {
-			await s3Client.send(
-				new HeadObjectCommand({ Bucket: BUCKET_NAME, Key: slide.contentUrl })
-			);
+			await s3Client.send(new HeadObjectCommand({ Bucket: BUCKET_NAME, Key: slide.contentUrl }));
 		} catch (err) {
 			console.error(`[finalize] S3 object missing for slide ${slideId}`, err);
 			throw error(409, 'Upload not found in storage');

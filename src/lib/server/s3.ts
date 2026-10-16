@@ -1,9 +1,4 @@
-import {
-	S3Client,
-	CreateBucketCommand,
-	HeadBucketCommand,
-	type S3ClientConfig
-} from '@aws-sdk/client-s3';
+import { S3Client, type S3ClientConfig } from '@aws-sdk/client-s3';
 import { env as privateEnv } from '$env/dynamic/private';
 import { env as publicEnv } from '$env/dynamic/public';
 

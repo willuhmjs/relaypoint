@@ -1,6 +1,12 @@
 import type { PageServerLoad, Actions } from './$types';
 import { prisma } from '$lib/server/prisma/prismaConnection';
-import { redirect, fail } from '@sveltejs/kit';
+import { redirect, fail, error } from '@sveltejs/kit';
+
+// Framework control-flow (HttpError, Redirect) must never be swallowed by
+// catch blocks that convert unknown errors into a 500.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const isFrameworkError = (e: any): boolean =>
+	!!e && typeof e === 'object' && 'status' in e && ('body' in e || 'location' in e);
 import { actionHelper } from '$lib/server/actionHelper';
 import { z } from 'zod';
 import { s3Client, BUCKET_NAME } from '$lib/server/s3';
@@ -45,7 +51,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		});
 
 		if (!displayGroup) {
-			return fail(404, { message: 'Display Group not found' });
+			// `fail()` is only valid in actions; in `load` it must be `error()`.
+			error(404, 'Display Group not found');
 		}
 
 		const allTeams = await prisma.team.findMany({
@@ -58,9 +65,10 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		const allDisplaysInGroup = displayGroup.displays;
 
 		return { displayGroup, allTeams, allDisplays: allDisplaysInGroup };
-	} catch (error) {
-		console.error(error);
-		return fail(500, { message: 'An internal server error occurred.' });
+	} catch (e) {
+		if (isFrameworkError(e)) throw e;
+		console.error(e);
+		error(500, 'An internal server error occurred.');
 	}
 };
 
@@ -79,7 +87,10 @@ export const actions: Actions = {
 				.string()
 				.transform((str) => JSON.parse(str) as number[])
 				.optional(),
-			useSharedTimeline: z.string().optional().transform((val) => val === 'on')
+			useSharedTimeline: z
+				.string()
+				.optional()
+				.transform((val) => val === 'on')
 		}),
 		async ({ name, teamIds, useSharedTimeline }, { locals, params }) => {
 			const session = await locals.auth();
@@ -267,42 +278,50 @@ export const actions: Actions = {
 
 			const display = await prisma.display.findUnique({
 				where: { id: displayId },
-				include: { slides: true }
+				include: {
+					slides: { select: { contentUrl: true } },
+					assets: { select: { s3Path: true } },
+					presentationSources: { select: { s3Path: true } }
+				}
 			});
 
 			if (!display) {
 				return fail(404, { error: 'Display not found.' });
 			}
 
-			const s3Keys = display.slides
-				.map((slide) => slide.contentUrl)
-				.filter((key): key is string => !!key);
+			try {
+				await prisma.display.delete({ where: { id: display.id } });
+			} catch (error) {
+				console.error('Failed to delete display from database:', error);
+				return fail(500, { error: 'Could not delete display from the database.' });
+			}
+
+			// The row is gone; storage cleanup is best effort afterwards so a
+			// transient S3 error can never leave an undeletable display behind.
+			// (Slides and assets cascade-delete in the database via FK.)
+			const s3Keys = [
+				...display.slides.map((slide) => slide.contentUrl),
+				...display.assets.map((asset) => asset.s3Path),
+				...display.presentationSources.map((source) => source.s3Path)
+			].filter((key): key is string => !!key);
 
 			if (s3Keys.length > 0) {
-				try {
-					const deletePromises = s3Keys.map((key) =>
+				const results = await Promise.allSettled(
+					s3Keys.map((key) =>
 						s3Client.send(
 							new DeleteObjectCommand({
 								Bucket: BUCKET_NAME,
 								Key: key
 							})
 						)
+					)
+				);
+				const failures = results.filter((r) => r.status === 'rejected').length;
+				if (failures > 0) {
+					console.error(
+						`Failed to delete ${failures}/${s3Keys.length} S3 objects for display ${displayId}; they are orphaned.`
 					);
-					await Promise.all(deletePromises);
-				} catch (error) {
-					console.error('Failed to delete S3 objects for display:', error);
-					return fail(500, { error: 'Could not delete associated content from storage.' });
 				}
-			}
-
-			try {
-				await prisma.$transaction([
-					prisma.slide.deleteMany({ where: { displayId: display.id } }),
-					prisma.display.delete({ where: { id: display.id } })
-				]);
-			} catch (error) {
-				console.error('Failed to delete display from database:', error);
-				return fail(500, { error: 'Could not delete display from the database.' });
 			}
 
 			return { success: true, message: 'Display deleted successfully.' };

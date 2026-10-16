@@ -2,7 +2,7 @@ import { prisma } from '$lib/server/prisma/prismaConnection';
 import { fail, redirect } from '@sveltejs/kit';
 import { actionHelper } from '$lib/server/actionHelper';
 import { z } from 'zod';
-import { isRedirect } from "@sveltejs/kit";
+import { isRedirect } from '@sveltejs/kit';
 export const actions = {
 	default: actionHelper(
 		z.object({
@@ -15,7 +15,6 @@ export const actions = {
 			const session = await locals.auth();
 			if (!session?.user?.id || session.user.role !== 'ADMIN') {
 				return redirect(303, '/');
-			
 			}
 
 			try {
@@ -25,7 +24,7 @@ export const actions = {
 				});
 
 				if (existingGroup) {
-					return fail(400, { error: 'A team with this name already exists.' });
+					return fail(400, { error: 'A display group with this name already exists.' });
 				}
 
 				const group = await prisma.displayGroup.create({
@@ -34,7 +33,6 @@ export const actions = {
 					}
 				});
 
-			
 				throw redirect(303, `/dash/groups/${group.id}`);
 			} catch (error) {
 				if (isRedirect(error)) {
@@ -52,7 +50,8 @@ export const actions = {
 					} else {
 						try {
 							userErrorMessage = JSON.stringify(error);
-						} catch { // Omit variable name to suppress ESLint warning for unused variable
+						} catch {
+							// Omit variable name to suppress ESLint warning for unused variable
 							userErrorMessage = `Failed to create group: ${String(error)}`;
 						}
 					}

@@ -1,5 +1,5 @@
 // src/routes/(protected)/dash/displays/[id]/+page.server.ts
-import { fail, redirect } from '@sveltejs/kit';
+import { fail, error } from '@sveltejs/kit';
 import { prisma } from '$lib/server/prisma/prismaConnection';
 import {
 	broadcastUpdate,
@@ -17,21 +17,38 @@ import { z } from 'zod';
 import { actionHelper } from '$lib/server/actionHelper';
 import { convertPdfToImages, convertOfficeToPdf } from '$lib/server/conversion';
 import { getVideoDurationFromBuffer } from '$lib/server/videoDuration';
-import { execSync } from 'child_process';
-import { readFileSync } from 'fs';
 import JSZip from 'jszip';
 import { assertCanEditDisplay, assertSessionForDisplayGroup } from '$lib/server/displayAuth';
 import { sanitizeFilename } from '$lib/server/slideMime';
+import { safeLinkUrl } from '$lib/server/linkUrl';
+import { MAX_UPLOAD_BYTES } from '$lib/server/uploadLimits';
 
 const OFFICE_PRESENTATION_MIME_TYPES = new Set([
 	'application/vnd.openxmlformats-officedocument.presentationml.presentation',
 	'application/vnd.ms-powerpoint'
 ]);
 
+// NOTE: the body-size cap for these form actions is enforced globally by
+// adapter-node's BODY_SIZE_LIMIT env var (must be >= MAX_UPLOAD_BYTES_MB);
+// the per-file MAX_UPLOAD_BYTES checks below give friendly inline errors.
+
+/** PowerPoint (.pptx) files are ZIP packages; verify the magic bytes before
+ * handing the buffer to the converter, since the browser only guesses the
+ * MIME type from the file extension. */
+function isZipPackage(buffer: Buffer): boolean {
+	return (
+		buffer.length >= 4 &&
+		buffer[0] === 0x50 &&
+		buffer[1] === 0x4b &&
+		buffer[2] < 0x10 &&
+		buffer[3] < 0x10
+	);
+}
+
 export const load = async (event) => {
 	const { params } = event;
 	const displayId = parseInt(params.id, 10);
-	if (isNaN(displayId)) throw redirect(303, '/dash');
+	if (isNaN(displayId)) throw error(404, 'Display not found');
 
 	const display = await prisma.display.findUnique({
 		where: { id: displayId },
@@ -44,7 +61,7 @@ export const load = async (event) => {
 		}
 	});
 
-	if (!display) throw redirect(303, '/dash');
+	if (!display) throw error(404, 'Display not found');
 
 	await assertSessionForDisplayGroup(event, display.displayGroupId);
 
@@ -224,6 +241,11 @@ export const actions = {
 		async ({ displayId, file }, event) => {
 			const id = parseInt(displayId, 10);
 			if (file.size === 0) return fail(400, { message: 'Empty file uploaded' });
+			if (file.size > MAX_UPLOAD_BYTES) {
+				return fail(413, {
+					message: `File is too large (${Math.round(file.size / 1024 / 1024)} MB). The limit is ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB (MAX_UPLOAD_BYTES_MB).`
+				});
+			}
 			const display = await prisma.display.findUnique({ where: { id } });
 			if (!display) return fail(404, { message: 'Display not found' });
 			await assertSessionForDisplayGroup(event, display.displayGroupId);
@@ -271,7 +293,7 @@ export const actions = {
 				where: { displayId: id },
 				_max: { order: true }
 			});
-			let stagingOrder = (currentMaxOrder._max.order ?? -1) + 1;
+			let stagingOrder = (currentMaxOrder._max.order ?? 0) + 1;
 
 			try {
 				if (fileType === 'application/zip' || fileType === 'application/x-zip-compressed') {
@@ -309,21 +331,48 @@ export const actions = {
 
 					const slideFiles = zip.folder('slides');
 					if (slideFiles) {
+						const extensionTypes: Record<string, 'IMAGE' | 'VIDEO' | 'HTML'> = {
+							png: 'IMAGE',
+							jpg: 'IMAGE',
+							jpeg: 'IMAGE',
+							gif: 'IMAGE',
+							webp: 'IMAGE',
+							svg: 'IMAGE',
+							mp4: 'VIDEO',
+							webm: 'VIDEO',
+							html: 'HTML',
+							htm: 'HTML'
+						};
 						for (const slideSetting of settings.slides) {
 							const slideFile = zip.file(`slides/${slideSetting.filename}`);
 							if (!slideFile) continue;
+							// Trust the file extension, not the manifest's declared type:
+							// a mismatch (e.g. HTML bytes labeled IMAGE) would smuggle
+							// executable content through the image path.
+							const ext = String(slideSetting.filename).split('.').pop()?.toLowerCase();
+							const type = ext ? extensionTypes[ext] : undefined;
+							if (!type) {
+								console.warn(`[zip import] Skipping unsupported slide: ${slideSetting.filename}`);
+								continue;
+							}
 							const slideBuffer = await slideFile.async('nodebuffer');
+							if (slideBuffer.length > MAX_UPLOAD_BYTES) {
+								throw new Error(`Slide "${slideSetting.filename}" exceeds the upload size limit`);
+							}
+							// settings.json is attacker-controlled: clamp the duration so a
+							// negative/absurd value cannot wedge the display timeline.
+							const duration = Math.min(3600, Math.max(1, Number(slideSetting.duration) || 5));
 							const safeSlideFilename = sanitizeFilename(slideSetting.filename);
 							const s3Key = `displays/${id}/slides/${uploadTimestamp}-${safeSlideFilename}`;
 							const slide = await prisma.slide.create({
 								data: {
 									displayId: id,
 									order: stagingOrder,
-									type: slideSetting.type,
+									type,
 									contentUrl: s3Key,
-									duration: slideSetting.duration,
+									duration,
 									isHidden: true,
-									linkUrl: slideSetting.linkUrl || null
+									linkUrl: safeLinkUrl(slideSetting.linkUrl)
 								}
 							});
 							newSlideIds.push(slide.id);
@@ -369,6 +418,9 @@ export const actions = {
 						newSlideKeys.push(s3Key);
 					}
 				} else if (OFFICE_PRESENTATION_MIME_TYPES.has(fileType)) {
+					if (!isZipPackage(fileBuffer)) {
+						throw new Error('The selected file is not a valid PowerPoint (.pptx) package');
+					}
 					const pdfBuffer = await convertOfficeToPdf(fileBuffer, fileName);
 					const images = await convertPdfToImages(
 						pdfBuffer,
@@ -541,7 +593,11 @@ export const actions = {
 						where: { id: { in: oldSources.map((s) => s.id) } }
 					});
 					for (const [i, s] of orderedNew.entries()) {
-						await tx.slide.update({ where: { id: s.id }, data: { order: i, isHidden: false } });
+						// Slide order is 1-based across the app (badges render it directly).
+						await tx.slide.update({
+							where: { id: s.id },
+							data: { order: i + 1, isHidden: false }
+						});
 					}
 					if (pendingSettings) {
 						await tx.display.update({
@@ -605,12 +661,13 @@ export const actions = {
 		}
 		await assertSessionForDisplayGroup(event, display.displayGroupId);
 
-		const maxOrder = display.slides.reduce((max, slide) => Math.max(max, slide.order), -1);
+		const maxOrder = display.slides.reduce((max, slide) => Math.max(max, slide.order), 0);
 		let currentOrder = maxOrder + 1;
 
 		const createdSlideIds: number[] = [];
 		const createdS3Keys: string[] = [];
 		const createdSourceIds: string[] = [];
+		const skippedFiles: string[] = [];
 
 		async function rollback(
 			failedFilename: string,
@@ -671,6 +728,9 @@ export const actions = {
 						currentOrder++;
 					}
 				} else if (OFFICE_PRESENTATION_MIME_TYPES.has(fileType)) {
+					if (!isZipPackage(fileBuffer)) {
+						throw new Error('The selected file is not a valid PowerPoint (.pptx) package');
+					}
 					const pdfBuffer = await convertOfficeToPdf(fileBuffer, fileName);
 					const images = await convertPdfToImages(
 						pdfBuffer,
@@ -761,6 +821,7 @@ export const actions = {
 					currentOrder++;
 				} else {
 					console.warn(`[addSlide] skipping unsupported file type: ${fileType} for ${fileName}`);
+					skippedFiles.push(file.name);
 					continue;
 				}
 			} catch (err) {
@@ -769,11 +830,20 @@ export const actions = {
 		}
 
 		if (createdSlideIds.length === 0) {
-			return fail(400, { message: 'No valid files were uploaded.' });
+			const what =
+				skippedFiles.length > 0 ? ` Unsupported file type(s): ${skippedFiles.join(', ')}.` : '';
+			return fail(400, { message: `No valid files were uploaded.${what}` });
 		}
 
 		broadcastUpdate(displayId, 'SLIDE_ADDED');
-		return { success: true, message: `${createdSlideIds.length} slide(s) added successfully.` };
+		const skippedNote =
+			skippedFiles.length > 0
+				? ` Skipped ${skippedFiles.length} unsupported file(s): ${skippedFiles.join(', ')}.`
+				: '';
+		return {
+			success: true,
+			message: `${createdSlideIds.length} slide(s) added successfully.${skippedNote}`
+		};
 	},
 
 	updateSettings: async (event) => {
@@ -876,7 +946,26 @@ export const actions = {
 			slideOrder: z.string().transform((val) => JSON.parse(val) as number[])
 		}),
 		async ({ slideOrder, displayId }, event) => {
-			await assertCanEditDisplay(event, parseInt(displayId, 10));
+			const displayIdNum = parseInt(displayId, 10);
+			await assertCanEditDisplay(event, displayIdNum);
+
+			const uniqueIds = new Set(slideOrder);
+			if (uniqueIds.size !== slideOrder.length) {
+				return fail(400, { message: 'Slide order contains duplicate slides.' });
+			}
+
+			const existing = await prisma.slide.findMany({
+				where: { displayId: displayIdNum },
+				select: { id: true }
+			});
+			const existingIds = new Set(existing.map((s) => s.id));
+			if (
+				existingIds.size !== uniqueIds.size ||
+				![...uniqueIds].every((id) => existingIds.has(id))
+			) {
+				return fail(400, { message: 'Slide order does not match this display.' });
+			}
+
 			await prisma.$transaction(async (tx) => {
 				const updatesPhase1 = slideOrder.map((slideId, index) =>
 					tx.slide.update({
@@ -889,13 +978,13 @@ export const actions = {
 				const updatesPhase2 = slideOrder.map((slideId, index) =>
 					tx.slide.update({
 						where: { id: slideId },
-						data: { order: index }
+						data: { order: index + 1 }
 					})
 				);
 				await Promise.all(updatesPhase2);
 			});
 
-			broadcastUpdate(parseInt(displayId, 10), 'SLIDE_ORDER_UPDATED');
+			broadcastUpdate(displayIdNum, 'SLIDE_ORDER_UPDATED');
 			return { success: true, message: 'Slide order updated.' };
 		}
 	),
@@ -908,10 +997,13 @@ export const actions = {
 
 		try {
 			const s3Key = slideToDelete.contentUrl;
+			// Remove the database row first: if S3 is briefly unreachable we end
+			// up with an orphan object (harmless, swept later) instead of a live
+			// slide row pointing at bytes that are already gone (broken display).
+			await prisma.slide.delete({ where: { id } });
 			if (s3Key) {
 				await s3Client.send(new DeleteObjectCommand({ Bucket: BUCKET_NAME, Key: s3Key }));
 			}
-			await prisma.slide.delete({ where: { id } });
 
 			const displayId = slideToDelete.displayId;
 			const remainingSlides = await prisma.slide.findMany({

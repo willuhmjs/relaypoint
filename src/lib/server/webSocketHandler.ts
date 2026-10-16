@@ -4,7 +4,6 @@ import type { IncomingMessage, Server } from 'http';
 import { parse } from 'url';
 import { prisma } from './prisma/prismaConnection';
 import { UAParser } from 'ua-parser-js';
-import type { DisplayClient } from '@prisma/client';
 
 // --- Type Definitions ---
 interface ExtendedWebSocket extends WebSocket {
@@ -42,14 +41,12 @@ const clients = ((globalThis as GlobalWithClients)[CLIENTS_KEY] ??= new Map());
  * Attaches the WebSocket server logic to a given HTTP server.
  * @param server The HTTP server instance.
  */
-export function attachWebSocketServer(
-	server: Server,
-	opts: { heartbeatIntervalMs?: number } = {}
-) {
+export function attachWebSocketServer(server: Server, opts: { heartbeatIntervalMs?: number } = {}) {
 	const heartbeatIntervalMs = opts.heartbeatIntervalMs ?? HEARTBEAT_INTERVAL_MS;
 	const wss = new WebSocketServer({ noServer: true });
 
 	const heartbeatTimer = setInterval(() => {
+		const seenClientIds: string[] = [];
 		wss.clients.forEach((client) => {
 			const ws = client as ExtendedWebSocket;
 			if (ws.isAlive === false) {
@@ -60,7 +57,17 @@ export function attachWebSocketServer(
 			}
 			ws.isAlive = false;
 			ws.ping();
+			if (ws.dbId) seenClientIds.push(ws.dbId);
 		});
+		// Persist liveness so the dashboard can tell which clients are currently online.
+		if (seenClientIds.length > 0) {
+			prisma.displayClient
+				.updateMany({
+					where: { id: { in: seenClientIds } },
+					data: { lastSeen: new Date() }
+				})
+				.catch((err: unknown) => console.error('[WebSocket] Failed to update lastSeen:', err));
+		}
 	}, heartbeatIntervalMs);
 
 	wss.on('close', () => clearInterval(heartbeatTimer));
@@ -93,6 +100,12 @@ export function attachWebSocketServer(
 		ws.on('pong', () => {
 			ws.isAlive = true;
 		});
+		// Sockets that never identify are leftovers (e.g. a client that died mid-connect);
+		// don't let them accumulate forever.
+		const identifyDeadline = setTimeout(() => {
+			if (!ws.dbId) ws.terminate();
+		}, 30_000);
+		ws.on('close', () => clearTimeout(identifyDeadline));
 
 		console.log(`[WebSocket] New client connecting for display ${ws.displayId}...`);
 
@@ -102,6 +115,13 @@ export function attachWebSocketServer(
 				const message = JSON.parse(rawMessage.toString());
 
 				if (message.type === 'identify' && message.clientId) {
+					// If this socket previously identified under a different id, drop the stale map entry.
+					if (ws.dbId && ws.dbId !== message.clientId) {
+						const previous = clients.get(ws.displayId)?.get(ws.dbId);
+						if (previous?.ws === ws) {
+							clients.get(ws.displayId)?.delete(ws.dbId);
+						}
+					}
 					ws.dbId = message.clientId;
 
 					const display = await prisma.display.findUnique({ where: { id: ws.displayId } });
@@ -176,7 +196,12 @@ export function attachWebSocketServer(
 		ws.on('close', () => {
 			if (ws.dbId) {
 				const displayClients = clients.get(ws.displayId);
-				if (displayClients) {
+				const entry = displayClients?.get(ws.dbId);
+				// Only remove the entry when it still points at THIS socket. After a
+				// reconnect the client re-identifies on a new socket before the old
+				// one's close event fires; deleting unconditionally here would make
+				// the freshly connected client invisible to broadcasts.
+				if (displayClients && entry && entry.ws === ws) {
 					displayClients.delete(ws.dbId);
 					if (displayClients.size === 0) {
 						clients.delete(ws.displayId);

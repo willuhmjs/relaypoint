@@ -52,7 +52,9 @@ async function cacheFirst(request: Request): Promise<Response> {
 
 	try {
 		const response = await fetch(request);
-		if (response.ok) {
+		// Only full 200 responses may enter the cache: putting a 206 partial
+		// response throws, which previously rejected the fetch handler.
+		if (response.ok && response.status === 200 && !request.headers.get('range')) {
 			cache.put(request, response.clone());
 		}
 		return response;
@@ -67,7 +69,7 @@ async function staleWhileRevalidate(request: Request): Promise<Response> {
 
 	const networkFetch = fetch(request)
 		.then((response) => {
-			if (response.ok) {
+			if (response.ok && response.status === 200 && !request.headers.get('range')) {
 				cache.put(request, response.clone());
 			}
 			return response;
@@ -87,13 +89,15 @@ sw.addEventListener('message', (event) => {
 		event.waitUntil(precacheUrls(urls));
 	} else if (event.data?.type === 'CLEAR_CACHE') {
 		event.waitUntil(
-			caches.keys().then((keys) =>
-				Promise.all(
-					keys
-						.filter((key) => key.startsWith('relaypoint-content-'))
-						.map((key) => caches.delete(key))
+			caches
+				.keys()
+				.then((keys) =>
+					Promise.all(
+						keys
+							.filter((key) => key.startsWith('relaypoint-content-'))
+							.map((key) => caches.delete(key))
+					)
 				)
-			)
 		);
 	}
 });

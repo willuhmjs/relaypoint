@@ -46,7 +46,7 @@ export const POST: RequestHandler = async (event) => {
 					orderBy: { order: 'desc' },
 					select: { order: true }
 				});
-				let nextOrder = (last?.order ?? -1) + 1;
+				let nextOrder = (last?.order ?? 0) + 1;
 
 				const created: { slideId: number; filename: string; contentType: string }[] = [];
 				for (const f of parsed.data.files) {
