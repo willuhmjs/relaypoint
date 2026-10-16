@@ -1,5 +1,4 @@
 // src/lib/transitions.ts
-import type { EasingFunction } from 'svelte/transition';
 
 // Define the shape of our animation objects
 export interface AnimationDefinition {
@@ -90,12 +89,3 @@ export const transitions = {
 } as const satisfies Record<string, AnimationDefinition>;
 
 export type TransitionType = keyof typeof transitions;
-
-// This part is no longer needed, but we leave the type for reference.
-type TransitionParams = {
-	delay?: number;
-	duration?: number;
-	easing?: EasingFunction;
-	css?: (t: number, u: number) => string;
-	tick?: (t: number, u: number) => void;
-};

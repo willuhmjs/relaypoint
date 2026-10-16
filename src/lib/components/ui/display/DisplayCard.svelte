@@ -15,6 +15,13 @@
 	const firstSlide = $derived(display.slides?.[0]);
 
 	let dialogOpen = $state(false);
+	// Fallback to the "No Preview" text if the thumbnail fails to load (e.g.
+	// the stored object was removed out from under us).
+	let thumbFailed = $state(false);
+	$effect(() => {
+		void firstSlide?.contentUrl;
+		thumbFailed = false;
+	});
 
 	function handleDelete() {
 		const formElement = document.getElementById(
@@ -71,12 +78,13 @@
 					<div
 						class="bg-muted/50 text-muted-foreground flex h-24 items-center justify-center overflow-hidden rounded-md text-sm"
 					>
-						{#if firstSlide?.contentUrl}
+						{#if firstSlide?.contentUrl && !thumbFailed}
 							{#if firstSlide.type === 'IMAGE'}
 								<img
 									src={`/content/${firstSlide.contentUrl}`}
 									alt={display.name}
 									class="h-full w-full object-cover"
+									onerror={() => (thumbFailed = true)}
 								/>
 							{:else if firstSlide.type === 'VIDEO'}
 								<video
@@ -98,7 +106,7 @@
 												d="M4 16v-2H2v2H1v-5h1v2h2v-2h1v5zm3 0v-4H5.6v-1h3.7v1H8v4zm3 0v-5h1l1.4 3.4h.1L14 11h1v5h-1v-3.1h-.1l-1.1 2.5h-.6l-1.1-2.5H11V16zm9 0h-3v-5h1v4h2zM9.4 4.2L7.1 6.5l2.3 2.3l-.6 1.2l-3.5-3.5L8.8 3zm1.2 4.6l2.3-2.3l-2.3-2.3l.6-1.2l3.5 3.5l-3.5 3.5z"
 											/></svg
 										>
-										<p class="itatlic color-secondary">No preview available.</p>
+										<p class="text-muted-foreground italic">No preview available.</p>
 									</div>
 								</div>
 							{/if}
@@ -115,8 +123,10 @@
 			</Card.Root>
 		</a>
 		{#if showDelete}
+			<!-- Visible by default so touch users can reach them; mouse users
+			     get the hover reveal. Keyboard focus also reveals. -->
 			<div
-				class="absolute top-4 right-4 z-10 flex gap-2 opacity-0 transition-opacity group-hover:opacity-100"
+				class="absolute top-4 right-4 z-10 flex gap-2 opacity-100 transition-opacity group-focus-within:opacity-100 pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100"
 			>
 				<Button
 					type="button"

@@ -10,7 +10,6 @@
 	import WifiOffIcon from '@lucide/svelte/icons/wifi-off';
 	import type { ClientInfo } from '$lib/server/webSocketHandler';
 	import type { DisplayClient } from '@prisma/client';
-	import { buttonVariants } from '$lib/components/ui/button';
 	import ClientDetailsModal from './ClientDetailsModal.svelte';
 
 	let { displayId }: { displayId: number } = $props();
@@ -102,7 +101,7 @@
 							{#each connectedClients as client (client.id)}
 								<li>
 									<button
-										class="flex w-full items-center gap-4 rounded-md p-2 text-left hover:bg-accent"
+										class="hover:bg-accent flex w-full items-center gap-4 rounded-md p-2 text-left"
 										onclick={() => {
 											selectedClient = client;
 											listModalOpen = false;
@@ -110,8 +109,9 @@
 									>
 										<div>
 											<p class="font-semibold">{client.friendlyName || client.ip}</p>
-											<p class="text-sm text-muted-foreground">
-												{client.os.name} {client.os.version} &bull; {client.browser.name}
+											<p class="text-muted-foreground text-sm">
+												{client.os.name}
+												{client.os.version} &bull; {client.browser.name}
 											</p>
 										</div>
 									</button>
@@ -120,7 +120,7 @@
 						</ul>
 					{:else}
 						<div class="flex h-48 items-center justify-center">
-							<p class="text-sm text-muted-foreground">No clients currently connected.</p>
+							<p class="text-muted-foreground text-sm">No clients currently connected.</p>
 						</div>
 					{/if}
 				</div>
@@ -132,7 +132,7 @@
 							{#each historyClients as client (client.id)}
 								<li>
 									<button
-										class="flex w-full items-center gap-4 rounded-md p-2 text-left hover:bg-accent"
+										class="hover:bg-accent flex w-full items-center gap-4 rounded-md p-2 text-left"
 										onclick={() => {
 											selectedClient = client;
 											listModalOpen = false;
@@ -140,7 +140,7 @@
 									>
 										<div>
 											<p class="font-semibold">{client.friendlyName || client.lastKnownIp}</p>
-											<p class="text-sm text-muted-foreground">
+											<p class="text-muted-foreground text-sm">
 												Last seen: {new Date(client.lastSeen).toLocaleString()}
 											</p>
 										</div>
@@ -149,13 +149,13 @@
 							{/each}
 						</ul>
 						{#if historyTotal > historyClients.length}
-							<p class="p-2 text-center text-xs text-muted-foreground">
+							<p class="text-muted-foreground p-2 text-center text-xs">
 								Showing the {historyClients.length} most recent of {historyTotal} records.
 							</p>
 						{/if}
 					{:else}
 						<div class="flex h-48 items-center justify-center">
-							<p class="text-sm text-muted-foreground">No client history.</p>
+							<p class="text-muted-foreground text-sm">No client history.</p>
 						</div>
 					{/if}
 				</div>
@@ -173,8 +173,8 @@
 								<AlertDialog.Header>
 									<AlertDialog.Title>Are you sure?</AlertDialog.Title>
 									<AlertDialog.Description>
-										This will permanently delete all {historyTotal} historical client
-										records for this display. This action cannot be undone.
+										This will permanently delete all {historyTotal} historical client records for this
+										display. This action cannot be undone.
 									</AlertDialog.Description>
 								</AlertDialog.Header>
 								<AlertDialog.Footer>
@@ -183,8 +183,7 @@
 										onclick={() =>
 											(
 												document.getElementById('clear-history-form') as HTMLFormElement
-											)?.requestSubmit()}
-										>Clear History</AlertDialog.Action
+											)?.requestSubmit()}>Clear History</AlertDialog.Action
 									>
 								</AlertDialog.Footer>
 							</AlertDialog.Content>
@@ -196,7 +195,13 @@
 	</Dialog.Content>
 </Dialog.Root>
 
-<form id="clear-history-form" class="hidden" method="POST" action="?/clearClientHistory" use:enhance>
+<form
+	id="clear-history-form"
+	class="hidden"
+	method="POST"
+	action="?/clearClientHistory"
+	use:enhance
+>
 	<input type="hidden" name="displayId" value={displayId} />
 </form>
 

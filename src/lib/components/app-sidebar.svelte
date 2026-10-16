@@ -10,7 +10,6 @@
 	import TeamSwitcher from './team-switcher.svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import { dashboardStore } from '$lib/stores/dashboardStore';
-	import type { DisplayGroupWithRelations } from '$lib/stores/dashboardStore';
 
 	const user = getContext<User | null>('user');
 

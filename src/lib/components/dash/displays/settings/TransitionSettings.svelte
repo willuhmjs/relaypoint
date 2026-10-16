@@ -7,29 +7,29 @@
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import { transitions, type TransitionType } from '$lib/transitions';
 	import { Input } from '$lib/components/ui/input';
-	import { Checkbox } from '$lib/components/ui/checkbox';
 
 	let { display, open = $bindable() } = $props<{ display: Display; open: boolean }>();
 	let selectedTransition = $state<TransitionType>(
-		(display.transitionType as TransitionType) || 'slide'
+		(display.transitionType as TransitionType) || 'fade'
 	);
 	let selectedDuration = $state(display.transitionDuration || 500);
-	let showQrCode = $state(display.showQrCode ?? true);
+	let showQrCode = $state(display.showQrCode ?? false);
 
 	const labels = Object.fromEntries(
 		Object.entries(transitions).map(([key, value]) => [key, value.label])
 	);
 
 	$effect(() => {
-		selectedTransition = (display.transitionType as TransitionType) || 'slide';
+		selectedTransition = (display.transitionType as TransitionType) || 'fade';
 		selectedDuration = display.transitionDuration || 500;
-		showQrCode = display.showQrCode ?? true;
+		showQrCode = display.showQrCode ?? false;
 	});
 </script>
 
 <Dialog.Header>
 	<Dialog.Title>Transition Effect</Dialog.Title>
-	<Dialog.Description>Select a transition effect for the slides in this display.</Dialog.Description>
+	<Dialog.Description>Select a transition effect for the slides in this display.</Dialog.Description
+	>
 </Dialog.Header>
 <form
 	method="POST"
@@ -50,7 +50,7 @@
 				{labels[selectedTransition] ?? 'Select a transition'}
 			</Select.Trigger>
 			<Select.Content>
-				{#each Object.entries(transitions) as [key, { label }]}
+				{#each Object.entries(transitions) as [key, { label }] (key)}
 					<Select.Item value={key}>{label}</Select.Item>
 				{/each}
 			</Select.Content>

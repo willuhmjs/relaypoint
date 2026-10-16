@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, tick as svelteTick } from 'svelte';
+	import { onMount, tick as svelteTick, untrack } from 'svelte';
 	import { transitions, type TransitionType } from '$lib/transitions';
 	import Loader2Icon from '@lucide/svelte/icons/loader-2';
 	import { renderSVG } from 'scannable/qr';
@@ -43,9 +43,23 @@
 
 	// --- Connection State ---
 	let ws: WebSocket | null = null;
-	let reconnectInterval: ReturnType<typeof setInterval>;
+	let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+	let reconnectAttempt = 0;
 	let timeSyncInterval: ReturnType<typeof setInterval>;
 	let swUpdateInterval: ReturnType<typeof setInterval>;
+
+	function scheduleReconnect() {
+		if (reconnectTimer) clearTimeout(reconnectTimer);
+		// Exponential backoff (5s, 10s, 20s, … capped at 2 min) plus jitter, so
+		// a fleet of displays reconnecting after a server restart doesn't
+		// stampede in lockstep.
+		const delay = Math.min(5_000 * 2 ** reconnectAttempt, 120_000) * (0.8 + Math.random() * 0.4);
+		reconnectAttempt += 1;
+		console.log(`[WebSocket] Reconnecting in ${Math.round(delay / 1000)}s...`);
+		reconnectTimer = setTimeout(() => {
+			if (!ws || ws.readyState === WebSocket.CLOSED) connectWebSocket();
+		}, delay);
+	}
 
 	// --- A/B Viewport State ---
 	let slideInViewA = $state<Slide | null>(null);
@@ -68,6 +82,12 @@
 	let iframeStageElement = $state<HTMLDivElement | null>(null);
 	let iframeRecycleTimer: ReturnType<typeof setInterval> | null = null;
 
+	// --- Background sync scheduling ---
+	let bgSyncInFlight = false;
+	let bgSyncQueued = false;
+	let bgSyncFailures = 0;
+	let bgSyncRetryTimer: ReturnType<typeof setTimeout> | null = null;
+
 	// --- Video sync effect ---
 	$effect(() => {
 		if (activeSlideIndex === -1) return;
@@ -75,8 +95,12 @@
 		if (!currentSlide) return;
 		if (currentSlide.type !== 'VIDEO') return;
 		const activeVideoEl = activeView === 'A' ? videoElementA : videoElementB;
+		// setVideoTime is untracked on purpose: it reads the NTP-corrected
+		// clock, which ticks on every pong, and re-seeking on each sample would
+		// stutter playback. Significant clock corrections re-seek explicitly in
+		// processNtpSample instead.
 		if (activeVideoEl) {
-			setVideoTime(activeVideoEl);
+			untrack(() => setVideoTime(activeVideoEl));
 		}
 	});
 
@@ -111,11 +135,12 @@
 
 		return () => {
 			cancelScheduledChecks();
-			clearInterval(reconnectInterval);
+			if (reconnectTimer) clearTimeout(reconnectTimer);
 			clearInterval(timeSyncInterval);
 			clearInterval(swUpdateInterval);
 			clearTimeout(ntpBurstTimer!);
 			if (iframeRecycleTimer) clearInterval(iframeRecycleTimer);
+			if (bgSyncRetryTimer) clearTimeout(bgSyncRetryTimer);
 			iframePool?.destroy();
 			if (ws) ws.close();
 		};
@@ -164,6 +189,11 @@
 		// Recalibrate scheduler if clock correction changed significantly
 		if (Math.abs(clockError - previousClockError) > 10 && status === 'playing') {
 			scheduleNextCheck();
+			// Re-anchor the playing video to the corrected timeline too.
+			const activeVideoEl = activeView === 'A' ? videoElementA : videoElementB;
+			if (slides[activeSlideIndex]?.type === 'VIDEO' && activeVideoEl) {
+				setVideoTime(activeVideoEl);
+			}
 		}
 	}
 
@@ -199,7 +229,9 @@
 			ws?.send(JSON.stringify({ type: 'identify', clientId: getOrSetClientId() }));
 
 			initialSync();
-			clearInterval(reconnectInterval);
+			if (reconnectTimer) clearTimeout(reconnectTimer);
+			reconnectTimer = null;
+			reconnectAttempt = 0;
 
 			// NTP burst: 5 pings at 2s intervals for fast initial calibration
 			ntpBurstRemaining = 5;
@@ -253,17 +285,16 @@
 			}
 		};
 
+		const socket = ws;
 		ws.onclose = () => {
-			console.log('[WebSocket] Connection closed. Attempting to reconnect in 5 seconds...');
+			// A superseded socket (reconnect already in progress) must not
+			// schedule extra reconnects or revert the connection status.
+			if (socket !== ws) return;
+			console.log('[WebSocket] Connection closed.');
 			status = 'recovering';
 			cancelScheduledChecks();
-			clearInterval(reconnectInterval);
 			clearInterval(timeSyncInterval);
-			reconnectInterval = setInterval(() => {
-				if (!ws || ws.readyState === WebSocket.CLOSED) {
-					connectWebSocket();
-				}
-			}, 5000);
+			scheduleReconnect();
 		};
 
 		ws.onerror = (error) => {
@@ -290,7 +321,10 @@
 		try {
 			const reg = await navigator.serviceWorker?.getRegistration();
 			if (reg) {
-				await Promise.race([reg.update(), new Promise<void>((resolve) => setTimeout(resolve, 5000))]);
+				await Promise.race([
+					reg.update(),
+					new Promise<void>((resolve) => setTimeout(resolve, 5000))
+				]);
 				if (navigator.serviceWorker?.controller) {
 					navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_CACHE' });
 				}
@@ -372,20 +406,7 @@
 			iframePool?.rebuild(slides, htmlContentCache);
 
 			// Start recycling timer for HTML slides
-			const hasHtmlSlides = slides.some((s) => s.type === 'HTML');
-			if (hasHtmlSlides && !iframeRecycleTimer) {
-				iframeRecycleTimer = setInterval(() => {
-					if (iframePool) {
-						const activeId = slides[activeSlideIndex]?.id;
-						const nextIndex = (activeSlideIndex + 1) % slides.length;
-						const nextId = slides[nextIndex]?.id;
-						iframePool.recycle([activeId, nextId].filter(Boolean));
-					}
-				}, 60_000);
-			} else if (!hasHtmlSlides && iframeRecycleTimer) {
-				clearInterval(iframeRecycleTimer);
-				iframeRecycleTimer = null;
-			}
+			updateIframeRecycleTimer();
 
 			const { calculatedIndex } = findCurrentSlideIndex();
 
@@ -459,9 +480,74 @@
 	// SYNC — BACKGROUND (no overlay, hot-swap)
 	// ========================================================================
 
+	function updateIframeRecycleTimer() {
+		const hasHtmlSlides = slides.some((s) => s.type === 'HTML');
+		if (hasHtmlSlides && !iframeRecycleTimer) {
+			iframeRecycleTimer = setInterval(() => {
+				if (iframePool) {
+					const activeId = slides[activeSlideIndex]?.id;
+					const nextIndex = (activeSlideIndex + 1) % slides.length;
+					const nextId = slides[nextIndex]?.id;
+					iframePool.recycle([activeId, nextId].filter(Boolean));
+				}
+			}, 60_000);
+		} else if (!hasHtmlSlides && iframeRecycleTimer) {
+			clearInterval(iframeRecycleTimer);
+			iframeRecycleTimer = null;
+		}
+	}
+
+	function scheduleBackgroundSyncRetry() {
+		if (bgSyncRetryTimer) return;
+		const delay = Math.min(30_000 * 2 ** bgSyncFailures, 5 * 60_000);
+		bgSyncFailures += 1;
+		console.log(`[BackgroundSync] Retrying in ${Math.round(delay / 1000)}s...`);
+		bgSyncRetryTimer = setTimeout(() => {
+			bgSyncRetryTimer = null;
+			void backgroundSync();
+		}, delay);
+	}
+
+	/**
+	 * Coalescing wrapper: broadcast bursts (or a slow network) must never pile
+	 * up concurrent syncs; one extra pass runs if updates arrived mid-flight.
+	 */
 	async function backgroundSync() {
+		if (bgSyncInFlight) {
+			bgSyncQueued = true;
+			return;
+		}
+		bgSyncInFlight = true;
+		try {
+			do {
+				bgSyncQueued = false;
+				await runBackgroundSync();
+			} while (bgSyncQueued);
+		} finally {
+			bgSyncInFlight = false;
+		}
+	}
+
+	async function runBackgroundSync() {
 		try {
 			const res = await fetch(`/display/${displayId}/sync`, { cache: 'no-store' });
+			if (res.status === 404) {
+				// All slides were unpublished (or the display deleted): stop showing
+				// stale content and keep polling at a backoff until something returns.
+				console.warn('[BackgroundSync] Display has no published content anymore.');
+				slides = [];
+				totalPresentationDuration = 0;
+				activeSlideIndex = -1;
+				slideInViewA = null;
+				slideInViewB = null;
+				iframePool?.rebuild([], new Map());
+				updateIframeRecycleTimer();
+				cancelScheduledChecks();
+				status = 'error';
+				errorMessage = 'No slides are currently published to this display.';
+				scheduleBackgroundSyncRetry();
+				return;
+			}
 			if (!res.ok) throw new Error(`Server sync failed: ${res.status} ${res.statusText}`);
 
 			const syncData = await res.json();
@@ -527,6 +613,7 @@
 				totalPresentationDuration = newSlides.reduce((sum, s) => sum + s.duration * 1000, 0);
 
 				iframePool?.rebuild(newSlides, newHtmlCache);
+				updateIframeRecycleTimer();
 
 				const { calculatedIndex } = findCurrentSlideIndex();
 				if (calculatedIndex !== -1) {
@@ -546,8 +633,16 @@
 			}
 
 			notifySwPrecache(newSlides);
+
+			// A successful sync ends any previous error/recovering state.
+			bgSyncFailures = 0;
+			if (status !== 'playing' && newSlides.length > 0) {
+				status = 'playing';
+			}
 		} catch (e) {
 			console.error('[BackgroundSync] Error:', e);
+			reportError(`[BackgroundSync] ${(e as Error)?.message || e}`);
+			scheduleBackgroundSyncRetry();
 		}
 	}
 
@@ -1040,6 +1135,9 @@
 				<span class="qr-url">{page.url.host}/view/{data.displayId}</span>
 			</div>
 			<div class="qr-code">
+				<!-- getQrSvg renders scannable's generated QR SVG for an app-built URL
+				     using the numeric display id — not user content. Verified safe. -->
+				<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 				{@html getQrSvg(`${page.url.origin}/view/${data.displayId}`)}
 			</div>
 		</a>

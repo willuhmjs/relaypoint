@@ -15,6 +15,9 @@
 
 	let { displayId, slides }: { displayId: number; slides: Slide[] } = $props();
 
+	// Local reorder buffer: mutated by drag events, re-synced from the
+	// server-provided `slides` prop on refetch. Not expressible as $derived.
+	// eslint-disable-next-line svelte/prefer-writable-derived
 	let items = $state(slides);
 	let isAddingSlide = $state(false);
 	let isDraggingOver = $state(false);

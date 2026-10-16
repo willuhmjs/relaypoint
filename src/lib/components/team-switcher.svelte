@@ -17,9 +17,7 @@
 	};
 
 	const user = getContext<UserWithTeams | null>('user');
-	const teams: Team[] | { team: Team }[] | null = $derived(
-		$page.data.teams || user?.teams || null
-	);
+	const teams: Team[] | { team: Team }[] | null = $derived($page.data.teams || user?.teams || null);
 
 	const sidebar = useSidebar();
 </script>
@@ -57,7 +55,7 @@
 				>
 					<DropdownMenu.Label class="text-muted-foreground text-xs">Teams</DropdownMenu.Label>
 					{#if teams}
-						{#each teams as team}
+						{#each teams as team ('id' in team ? team.id : team.team.id)}
 							{@const currentTeam = 'team' in team ? team.team : team}
 							<DropdownMenu.Item
 								onSelect={() => {

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { Button, buttonVariants } from '$lib/components/ui/button';
+	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import * as Dialog from '$lib/components/ui/dialog';
@@ -95,7 +95,7 @@
 							/>
 						{:else}
 							<div
-								class="flex h-9 flex-grow items-center truncate rounded-md border border-input bg-transparent px-3 py-2 text-sm"
+								class="border-input flex h-9 flex-grow items-center truncate rounded-md border bg-transparent px-3 py-2 text-sm"
 							>
 								{client.friendlyName || ('ip' in client ? client.ip : client.lastKnownIp)}
 							</div>
@@ -119,7 +119,7 @@
 				</form>
 			</div>
 
-			<ul class="space-y-1 text-sm text-muted-foreground">
+			<ul class="text-muted-foreground space-y-1 text-sm">
 				<li class="break-all"><strong>ID:</strong> {client.id}</li>
 				<li class="break-all"><strong>User Agent:</strong> {client.userAgent}</li>
 				{#if 'latency' in client}
@@ -136,7 +136,9 @@
 				{/if}
 			</ul>
 		</div>
-		<Dialog.Footer class="flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
+		<Dialog.Footer
+			class="flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between"
+		>
 			<AlertDialog.Root bind:open={isDeletingClient}>
 				<AlertDialog.Trigger>
 					{#snippet child({ props })}
@@ -147,8 +149,8 @@
 					<AlertDialog.Header>
 						<AlertDialog.Title>Are you sure?</AlertDialog.Title>
 						<AlertDialog.Description>
-							This will permanently delete this client record. The client can reconnect and create a new
-							record. This cannot be undone.
+							This will permanently delete this client record. The client can reconnect and create a
+							new record. This cannot be undone.
 						</AlertDialog.Description>
 					</AlertDialog.Header>
 					<AlertDialog.Footer>
@@ -157,47 +159,77 @@
 							onclick={() =>
 								(
 									document.getElementById(`delete-client-form-${client.id}`) as HTMLFormElement
-								)?.requestSubmit()}
-							>Delete</AlertDialog.Action
+								)?.requestSubmit()}>Delete</AlertDialog.Action
 						>
 					</AlertDialog.Footer>
 				</AlertDialog.Content>
 			</AlertDialog.Root>
 
 			<div class="flex flex-wrap justify-end gap-2">
-				<form method="POST" action="?/toggleClientDebug" use:enhance={() => {
-					debugToggling = true;
-					return async () => {
-						clientDebugEnabled = !clientDebugEnabled;
-						debugToggling = false;
-					};
-				}}>
+				<form
+					method="POST"
+					action="?/toggleClientDebug"
+					use:enhance={() => {
+						debugToggling = true;
+						return async () => {
+							clientDebugEnabled = !clientDebugEnabled;
+							debugToggling = false;
+						};
+					}}
+				>
 					<input type="hidden" name="displayId" value={displayId} />
 					<input type="hidden" name="clientId" value={client.id} />
 					<input type="hidden" name="enabled" value={String(!clientDebugEnabled)} />
-					<Button type="submit" variant={clientDebugEnabled ? "default" : "outline"} size="sm" disabled={!('latency' in client) || debugToggling}>
+					<Button
+						type="submit"
+						variant={clientDebugEnabled ? 'default' : 'outline'}
+						size="sm"
+						disabled={!('latency' in client) || debugToggling}
+					>
 						{#if debugToggling}<Loader2Icon class="mr-1 h-3 w-3 animate-spin" />{/if}
 						{clientDebugEnabled ? 'Debug On' : 'Debug'}
 					</Button>
 				</form>
-				<form method="POST" action="?/sendClientUpdate" use:enhance={() => {
-					updateSending = true;
-					return async () => { updateSending = false; };
-				}}>
+				<form
+					method="POST"
+					action="?/sendClientUpdate"
+					use:enhance={() => {
+						updateSending = true;
+						return async () => {
+							updateSending = false;
+						};
+					}}
+				>
 					<input type="hidden" name="displayId" value={displayId} />
 					<input type="hidden" name="clientId" value={client.id} />
-					<Button type="submit" variant="secondary" size="sm" disabled={!('latency' in client) || updateSending}>
+					<Button
+						type="submit"
+						variant="secondary"
+						size="sm"
+						disabled={!('latency' in client) || updateSending}
+					>
 						{#if updateSending}<Loader2Icon class="mr-1 h-3 w-3 animate-spin" />{/if}
 						Update
 					</Button>
 				</form>
-				<form method="POST" action="?/forceClientRefresh" use:enhance={() => {
-					refreshSending = true;
-					return async () => { refreshSending = false; };
-				}}>
+				<form
+					method="POST"
+					action="?/forceClientRefresh"
+					use:enhance={() => {
+						refreshSending = true;
+						return async () => {
+							refreshSending = false;
+						};
+					}}
+				>
 					<input type="hidden" name="displayId" value={displayId} />
 					<input type="hidden" name="clientId" value={client.id} />
-					<Button type="submit" variant="outline" size="sm" disabled={!('latency' in client) || refreshSending}>
+					<Button
+						type="submit"
+						variant="outline"
+						size="sm"
+						disabled={!('latency' in client) || refreshSending}
+					>
 						{#if refreshSending}<Loader2Icon class="mr-1 h-3 w-3 animate-spin" />{/if}
 						Refresh
 					</Button>

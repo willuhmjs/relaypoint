@@ -11,6 +11,8 @@
 
 	let loading = $state(false);
 	// Ensure showQrCode defaults to false if it's null/undefined, and correctly reflects the display prop
+	// bind:checked writes this locally; $derived would make it read-only.
+	// eslint-disable-next-line svelte/prefer-writable-derived
 	let showQrCode = $state(display.showQrCode ?? false);
 
 	$effect(() => {
@@ -20,9 +22,7 @@
 
 <Dialog.Header>
 	<Dialog.Title>Footer Settings</Dialog.Title>
-	<Dialog.Description>
-		Manage the visibility of the footer on the display.
-	</Dialog.Description>
+	<Dialog.Description>Manage the visibility of the footer on the display.</Dialog.Description>
 </Dialog.Header>
 
 <form
@@ -41,7 +41,7 @@
 	class="grid gap-4 py-4"
 >
 	<input type="hidden" name="id" value={display.id} />
-	
+
 	<!-- Preserve other settings that this form action expects, similar to TransitionSettings.svelte -->
 	<input type="hidden" name="transitionType" value={display.transitionType} />
 	<input type="hidden" name="transitionDuration" value={display.transitionDuration} />
@@ -49,7 +49,7 @@
 	<div class="flex flex-row items-center justify-between rounded-lg border p-4">
 		<div class="max-w-[80%] space-y-0.5">
 			<Label class="text-base">Show QR Code</Label>
-			<div class="text-sm text-muted-foreground">
+			<div class="text-muted-foreground text-sm">
 				Display a QR code footer for easy access to the mobile view.
 			</div>
 		</div>

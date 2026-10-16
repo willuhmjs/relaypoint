@@ -112,7 +112,8 @@
 		</Dialog.Root>
 
 		<Dialog.Root bind:open={qrDialogOpen}>
-			<Dialog.Trigger class={buttonVariants({ variant: 'outline' })}>Footer Settings</Dialog.Trigger>
+			<Dialog.Trigger class={buttonVariants({ variant: 'outline' })}>Footer Settings</Dialog.Trigger
+			>
 			<Dialog.Content class="sm:max-w-[425px]">
 				<QrSettings {display} bind:open={qrDialogOpen} />
 			</Dialog.Content>

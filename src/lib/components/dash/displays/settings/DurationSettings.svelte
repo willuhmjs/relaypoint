@@ -6,12 +6,18 @@
 	import type { Display, Slide } from '@prisma/client';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 
-	let { display, slides, open = $bindable() } = $props<{ display: Display; slides: Slide[]; open: boolean }>();
+	let {
+		display,
+		slides,
+		open = $bindable()
+	} = $props<{ display: Display; slides: Slide[]; open: boolean }>();
 
 	const getInitialDuration = () => {
 		return slides && slides.length > 0 ? slides[0].duration : 10;
 	};
 
+	// bind:value mutates this locally; $derived would break the input.
+	// eslint-disable-next-line svelte/prefer-writable-derived
 	let allSlidesDuration = $state(getInitialDuration());
 
 	$effect(() => {

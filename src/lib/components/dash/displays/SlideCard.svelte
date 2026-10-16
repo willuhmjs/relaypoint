@@ -13,9 +13,11 @@
 	import type { Slide } from '@prisma/client';
 	import { createEventDispatcher } from 'svelte';
 
+	// `displayId` is kept in the prop contract (the parent passes it for
+	// identity clarity) though the card derives everything from `slide`.
 	let {
 		slide,
-		displayId
+		displayId: _displayId
 	}: { slide: Slide & { linkUrl?: string | null }; displayId: number } = $props();
 	const dispatch = createEventDispatcher();
 
@@ -118,7 +120,7 @@
 				{#if slide.type === 'IMAGE'}
 					<img
 						src={`/content/${slide.contentUrl}`}
-						alt="Slide {slide.order + 1}"
+						alt="Slide {slide.order}"
 						class="h-full w-full rounded-md object-contain"
 					/>
 				{:else if slide.type === 'VIDEO'}
@@ -128,7 +130,7 @@
 						controls={false}
 						muted
 					></video>
-					<p class="absolute bottom-2 right-2 rounded bg-black/50 px-2 py-1 text-xs text-white">
+					<p class="absolute right-2 bottom-2 rounded bg-black/50 px-2 py-1 text-xs text-white">
 						VIDEO
 					</p>
 				{:else if slide.type === 'HTML'}
@@ -136,11 +138,11 @@
 						<iframe
 							src={`/content/${slide.contentUrl}`}
 							class="pointer-events-none h-[400%] w-[400%] origin-top-left scale-[0.25] border-0"
-							title="Slide {slide.order + 1} preview"
-							sandbox="allow-scripts allow-same-origin"
+							title="Slide {slide.order} preview"
+							sandbox="allow-scripts allow-forms allow-popups"
 						></iframe>
 					</div>
-					<p class="absolute bottom-2 right-2 rounded bg-black/50 px-2 py-1 text-xs text-white">
+					<p class="absolute right-2 bottom-2 rounded bg-black/50 px-2 py-1 text-xs text-white">
 						HTML
 					</p>
 				{/if}
@@ -152,8 +154,8 @@
 					</div>
 				{/if}
 				<span
-					class="bg-primary text-primary-foreground absolute left-2 top-2 rounded-full px-2 py-1 text-xs"
-					>{slide.order + 1}</span
+					class="bg-primary text-primary-foreground absolute top-2 left-2 rounded-full px-2 py-1 text-xs"
+					>{slide.order}</span
 				>
 			</button>
 		</ContextMenu.Trigger>
@@ -172,7 +174,7 @@
 	<Button
 		variant="outline"
 		size="icon"
-		class="absolute right-24 top-2 z-10 h-8 w-8 opacity-0 transition-opacity group-hover:bg-muted group-hover:opacity-100 hover:bg-muted dark:group-hover:bg-muted dark:hover:bg-muted"
+		class="group-hover:bg-muted hover:bg-muted dark:group-hover:bg-muted dark:hover:bg-muted absolute top-2 right-24 z-10 h-8 w-8 opacity-0 transition-opacity group-hover:opacity-100"
 		onclick={(e) => {
 			e.stopPropagation();
 			isLinkDialogOpen = true;
@@ -185,7 +187,7 @@
 	<Button
 		variant="destructive"
 		size="icon"
-		class="absolute right-2 top-2 z-10 h-8 w-8 opacity-0 transition-opacity group-hover:opacity-100"
+		class="absolute top-2 right-2 z-10 h-8 w-8 opacity-0 transition-opacity group-hover:opacity-100"
 		onclick={(e) => {
 			e.stopPropagation();
 			dispatch('deleteRequest');
@@ -200,7 +202,7 @@
 		size="icon"
 		href={`/content/${slide.contentUrl}?download=true`}
 		download={slide.contentUrl.split('/').pop()}
-		class="absolute right-12 top-2 z-10 h-8 w-8 opacity-0 transition-opacity group-hover:bg-muted group-hover:opacity-100 hover:bg-muted dark:group-hover:bg-muted dark:hover:bg-muted"
+		class="group-hover:bg-muted hover:bg-muted dark:group-hover:bg-muted dark:hover:bg-muted absolute top-2 right-12 z-10 h-8 w-8 opacity-0 transition-opacity group-hover:opacity-100"
 		title="Download slide"
 		onclick={(e) => e.stopPropagation()}
 	>
@@ -216,7 +218,7 @@
 					await update({ reset: false });
 				};
 			}}
-			class="absolute right-36 top-2 z-10 opacity-0 transition-opacity {isMouseDownOnDuration
+			class="absolute top-2 right-36 z-10 opacity-0 transition-opacity {isMouseDownOnDuration
 				? '!opacity-100'
 				: 'group-hover:opacity-100'}"
 		>
@@ -228,11 +230,11 @@
 					bind:value={slide.duration}
 					oninput={debounceDurationSave}
 					onmousedown={handleDurationMouseDown}
-					class="duration-input h-8 w-14 text-center group-hover:bg-muted dark:group-hover:bg-muted"
+					class="duration-input group-hover:bg-muted dark:group-hover:bg-muted h-8 w-14 text-center"
 					min="1"
 				/>
 				<span
-					class="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-sm text-muted-foreground"
+					class="text-muted-foreground pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-sm"
 					>s</span
 				>
 			</div>
@@ -249,7 +251,7 @@
 			</Dialog.Description>
 		</Dialog.Header>
 		<div class="grid gap-4 py-4">
-			<div class="aspect-video w-full overflow-hidden rounded-md border bg-muted">
+			<div class="bg-muted aspect-video w-full overflow-hidden rounded-md border">
 				{#if slide.type === 'IMAGE'}
 					<img
 						src={`/content/${slide.contentUrl}`}
@@ -269,7 +271,7 @@
 							src={`/content/${slide.contentUrl}`}
 							class="pointer-events-none h-[400%] w-[400%] origin-top-left scale-[0.25] border-0"
 							title="Slide Preview"
-							sandbox="allow-scripts allow-same-origin"
+							sandbox="allow-scripts allow-forms allow-popups"
 						></iframe>
 					</div>
 				{/if}
@@ -309,32 +311,36 @@
 </Dialog.Root>
 
 <Dialog.Root bind:open={isPreviewDialogOpen}>
-	<Dialog.Content class="sm:max-w-screen-md flex h-[80vh] flex-col overflow-hidden border-0 bg-background p-0 shadow-none">
+	<Dialog.Content
+		class="bg-background flex h-[80vh] flex-col overflow-hidden border-0 p-0 shadow-none sm:max-w-screen-md"
+	>
 		<Dialog.Title class="sr-only">Slide Preview</Dialog.Title>
 		<Dialog.Description class="sr-only">Preview of the slide content.</Dialog.Description>
-		
+
 		<div class="flex shrink-0 items-center justify-between border-b p-3">
 			<div class="flex items-center gap-3">
-				<span class="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
-					{slide.order + 1}
+				<span
+					class="bg-primary text-primary-foreground flex h-6 w-6 items-center justify-center rounded-full text-xs"
+				>
+					{slide.order}
 				</span>
-				<span class="text-sm text-muted-foreground">{slide.duration}s</span>
+				<span class="text-muted-foreground text-sm">{slide.duration}s</span>
 				{#if slide.linkUrl}
-					<div class="flex items-center gap-1 text-sm text-muted-foreground ml-2">
+					<div class="text-muted-foreground ml-2 flex items-center gap-1 text-sm">
 						<LinkIcon class="h-3 w-3" />
-						<a 
-							href={slide.linkUrl} 
-							target="_blank" 
-							rel="noopener noreferrer" 
-							class="max-w-[200px] truncate hover:max-w-none hover:text-foreground transition-all"
+						<a
+							href={slide.linkUrl}
+							target="_blank"
+							rel="noopener noreferrer"
+							class="hover:text-foreground max-w-[200px] truncate transition-all hover:max-w-none"
 						>
 							{slide.linkUrl}
 						</a>
 					</div>
 				{/if}
 			</div>
-			
-			<div class="flex items-center gap-2 mr-6">
+
+			<div class="mr-6 flex items-center gap-2">
 				<Button
 					variant="outline"
 					size="icon"
@@ -383,7 +389,7 @@
 							src={`/content/${slide.contentUrl}`}
 							class="h-full w-full border-0"
 							title="Slide Preview"
-							sandbox="allow-scripts allow-same-origin"
+							sandbox="allow-scripts allow-forms allow-popups"
 						></iframe>
 					</div>
 				{/if}

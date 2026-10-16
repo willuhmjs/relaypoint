@@ -5,16 +5,8 @@
 	import { toggleMode } from 'mode-watcher';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as NavigationMenu from '$lib/components/ui/navigation-menu/index.js';
-	import { cn } from '$lib/utils.js';
 	import { navigationMenuTriggerStyle } from '$lib/components/ui/navigation-menu/navigation-menu-trigger.svelte';
-	import type { HTMLAttributes } from 'svelte/elements';
 	import { page } from '$app/state';
-
-	type ListItemProps = HTMLAttributes<HTMLAnchorElement> & {
-		title: string;
-		href: string;
-		content: string;
-	};
 </script>
 
 <header>
@@ -27,28 +19,6 @@
 
 		{#if page.url.pathname.includes('dash')}
 			<div class="nav-bar">
-				{#snippet ListItem({ title, content, href, class: className, ...restProps }: ListItemProps)}
-					<li>
-						<NavigationMenu.Link>
-							{#snippet child()}
-								<a
-									{href}
-									class={cn(
-										'hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground block space-y-1 rounded-md p-3 leading-none no-underline transition-colors outline-none select-none',
-										className
-									)}
-									{...restProps}
-								>
-									<div class="text-sm leading-none font-medium">{title}</div>
-									<p class="text-muted-foreground line-clamp-2 text-sm leading-snug">
-										{content}
-									</p>
-								</a>
-							{/snippet}
-						</NavigationMenu.Link>
-					</li>
-				{/snippet}
-
 				<NavigationMenu.Root viewport={false}>
 					<NavigationMenu.List>
 						<NavigationMenu.Item>
