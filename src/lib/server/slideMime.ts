@@ -3,9 +3,10 @@ import type { SlideType } from '@prisma/client';
 export type FastPathSlideType = 'IMAGE' | 'VIDEO' | 'HTML';
 
 export function slideTypeFromMime(mime: string): SlideType | null {
-	if (mime.startsWith('image/')) return 'IMAGE';
-	if (mime.startsWith('video/')) return 'VIDEO';
-	if (mime === 'text/html') return 'HTML';
+	const normalized = mime.split(';')[0].trim().toLowerCase();
+	if (normalized.startsWith('image/')) return 'IMAGE';
+	if (normalized.startsWith('video/')) return 'VIDEO';
+	if (normalized === 'text/html') return 'HTML';
 	return null;
 }
 

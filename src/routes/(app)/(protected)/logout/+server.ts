@@ -20,7 +20,14 @@ export async function POST(event) {
 		}
 
 		if (env.APP_URL) {
-			logOutUrl.searchParams.set('post_logout_redirect_uri', env.APP_URL);
+			// APP_URL must be absolute; a schemeless value ("localhost:5173")
+			// would produce an invalid redirect the IdP must reject.
+			const appUrl = /^https?:\/\//i.test(env.APP_URL) ? env.APP_URL : `http://${env.APP_URL}`;
+			try {
+				logOutUrl.searchParams.set('post_logout_redirect_uri', new URL(appUrl).toString());
+			} catch {
+				console.warn(`[logout] Ignoring invalid APP_URL: ${env.APP_URL}`);
+			}
 		}
 
 		redirectTo = logOutUrl.toString();
