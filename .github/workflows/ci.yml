@@ -6,13 +6,16 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   quality:
-    name: Type-check & build
+    name: Type-check, build & lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -34,13 +37,13 @@ jobs:
       - name: Build
         run: npm run build
 
-      # NOTE: The codebase carries pre-existing lint/format debt (unused vars,
-      # explicit `any`, missing #each keys) that predates this workflow. It is
-      # reported here for visibility but does not fail the build. Remove
-      # `continue-on-error` once the remaining issues are cleaned up.
-      - name: Lint (advisory)
-        continue-on-error: true
-        run: npm run lint
+      # Separate steps (instead of `npm run lint`) so a formatting failure
+      # never masks lint findings.
+      - name: Format check
+        run: npx prettier --check .
+
+      - name: Lint
+        run: npx eslint .
 
   e2e:
     name: End-to-end tests
@@ -61,18 +64,35 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      minio:
+        image: minio/minio:latest
+        env:
+          MINIO_ROOT_USER: minio_access_key
+          MINIO_ROOT_PASSWORD: minio_secret_key
+        ports:
+          - 9000:9000
+        # The bucket is created by the Playwright global setup (with retries),
+        # which is also what proves MinIO is ready to accept uploads.
+        options: >-
+          --entrypoint server
+          -- "/data"
     env:
       DATABASE_URL: postgres://relaypoint@localhost:5432/relaypoint?schema=public
-      AUTH_SECRET: "ci_only_value_not_a_real_secret"
-      AUTH_TRUST_HOST: "true"
-      AUTH_PROVIDERS: ""
+      AUTH_SECRET: 'ci_only_value_not_a_real_secret'
+      AUTH_TRUST_HOST: 'true'
+      AUTH_PROVIDERS: ''
+      # No OAuth/OIDC provider is configured in CI, so local email/password
+      # login auto-enables; the e2e suites authenticate with a seeded session
+      # cookie (see e2e/global.setup.ts) instead.
       ORIGIN: http://localhost:4173
       APP_URL: http://localhost:4173
       PUBLIC_S3_ENDPOINT: http://localhost:9000
       PUBLIC_S3_BUCKET_NAME: relaypoint
       PUBLIC_S3_REGION: us-east-1
-      S3_ACCESS_KEY: "minio_access_key"
-      S3_SECRET_KEY: "minio_secret_key"
+      S3_ACCESS_KEY: 'minio_access_key'
+      S3_SECRET_KEY: 'minio_secret_key'
+      BODY_SIZE_LIMIT: 10M
+      MAX_UPLOAD_BYTES_MB: '10'
     steps:
       - uses: actions/checkout@v4
 

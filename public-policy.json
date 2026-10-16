@@ -1,18 +1,12 @@
 {
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Principal": {
-                "AWS": [
-                    "*"
-                ]
-            },
-            "Action": [
-                "s3:GetObject"
-            ],
-            "Resource": [
-                "arn:aws:s3:::relaypoint/*"
-            ]
-        }
-    ]
+	"Statement": [
+		{
+			"Effect": "Allow",
+			"Principal": {
+				"AWS": ["*"]
+			},
+			"Action": ["s3:GetObject"],
+			"Resource": ["arn:aws:s3:::relaypoint/*"]
+		}
+	]
 }
