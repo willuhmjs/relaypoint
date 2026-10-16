@@ -21,7 +21,7 @@
 	</div>
 
 	{#if form?.error}
-		<div class="rounded-md bg-destructive/15 p-4 text-destructive">
+		<div class="bg-destructive/15 text-destructive rounded-md p-4">
 			{form.error}
 		</div>
 	{/if}
@@ -85,17 +85,17 @@
 				<Table.Body>
 					{#if data.versions.length === 0}
 						<Table.Row>
-							<Table.Cell colspan={5} class="text-center text-muted-foreground">
+							<Table.Cell colspan={5} class="text-muted-foreground text-center">
 								No APK versions found.
 							</Table.Cell>
 						</Table.Row>
 					{:else}
-						{#each data.versions as version}
+						{#each data.versions as version (version.id)}
 							<Table.Row>
 								<Table.Cell class="font-medium">
 									{version.version}
 									{#if version.version === data.versions[0]?.version}
-										<span class="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
+										<span class="bg-primary/10 text-primary ml-2 rounded-full px-2 py-0.5 text-xs">
 											Latest
 										</span>
 									{/if}

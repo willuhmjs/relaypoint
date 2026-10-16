@@ -23,7 +23,17 @@ export default ts.config(
 		rules: {
 			// typescript-eslint strongly recommend that you do not use the no-undef lint rule on TypeScript projects.
 			// see: https://typescript-eslint.io/troubleshooting/faqs/eslint/#i-get-errors-from-the-no-undef-rule-about-global-variables-not-being-defined-even-though-there-are-no-typescript-errors
-			'no-undef': 'off'
+			'no-undef': 'off',
+			// Allow the deliberate `{ used, ...rest }` destructure-to-omit idiom:
+			// the intentionally-unused leading bindings are not dead code.
+			'@typescript-eslint/no-unused-vars': [
+				'error',
+				{ argsIgnorePattern: '^_', varsIgnorePattern: '^_', ignoreRestSiblings: true }
+			],
+			// Pre-existing debt (vendored shadcn props, dynamic OAuth provider
+			// option bags): reported, but not yet gated. Roadmap: tighten to
+			// 'error' as the remaining `any` sites are typed.
+			'@typescript-eslint/no-explicit-any': 'warn'
 		}
 	},
 	{

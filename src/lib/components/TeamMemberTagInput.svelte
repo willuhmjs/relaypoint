@@ -93,7 +93,9 @@
 	let selectedUsers = $derived(
 		selectedUserIds
 			.map((id: string) =>
-				allUsers.find((user: { id: string; name: string | null; email: string | null }) => user.id === id)
+				allUsers.find(
+					(user: { id: string; name: string | null; email: string | null }) => user.id === id
+				)
 			)
 			.filter(
 				(
@@ -125,12 +127,12 @@
 
 	{#if showDropdown && (filteredUsers.length > 0 || canInviteSearchTerm)}
 		<ul
-			class="absolute z-10 mt-1 w-full max-h-60 overflow-auto rounded-md border bg-background shadow-lg"
+			class="bg-background absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md border shadow-lg"
 		>
 			{#each filteredUsers as user (user.id)}
 				<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 				<li
-					class="cursor-pointer px-4 py-2 hover:bg-accent hover:text-accent-foreground"
+					class="hover:bg-accent hover:text-accent-foreground cursor-pointer px-4 py-2"
 					onmousedown={() => addUser(user)}
 				>
 					{user.name || user.email}
@@ -139,7 +141,7 @@
 			{#if canInviteSearchTerm}
 				<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 				<li
-					class="cursor-pointer px-4 py-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+					class="text-muted-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer px-4 py-2"
 					onmousedown={() => addInvite(searchTerm)}
 				>
 					Invite "{trimmedSearchTerm}"
@@ -151,7 +153,7 @@
 	<div class="mt-4 flex flex-wrap gap-2">
 		{#each selectedUsers as user (user.id)}
 			<div
-				class="flex items-center rounded-full bg-primary px-3 py-1 text-sm text-primary-foreground"
+				class="bg-primary text-primary-foreground flex items-center rounded-full px-3 py-1 text-sm"
 			>
 				{user.name || user.email}
 				<Button
@@ -171,7 +173,7 @@
 		{/each}
 		{#each invitedEmails as email (email)}
 			<div
-				class="flex items-center rounded-full border border-dashed border-primary px-3 py-1 text-sm italic text-muted-foreground"
+				class="border-primary text-muted-foreground flex items-center rounded-full border border-dashed px-3 py-1 text-sm italic"
 			>
 				{email} (pending)
 				<Button

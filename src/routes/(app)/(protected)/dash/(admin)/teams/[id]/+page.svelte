@@ -51,7 +51,7 @@
 	<Card.Root class="w-full">
 		<Card.Header>
 			<Card.Title>Team Settings</Card.Title>
-			<Card.Description>Manage your team settings. </Card.Description>
+			<Card.Description>Manage your team settings.</Card.Description>
 		</Card.Header>
 		<Card.Content class="space-y-8">
 			{#if team}
@@ -82,7 +82,7 @@
 					<div class="space-y-2">
 						<Label for="users">Team Members</Label>
 						<TeamMemberTagInput {allUsers} bind:selectedUserIds bind:invitedEmails />
-						<p class="text-xs text-muted-foreground">
+						<p class="text-muted-foreground text-xs">
 							Type an email address and press Enter to invite someone who hasn't signed in yet.
 							They'll be added to this team automatically the first time they sign in.
 						</p>
@@ -106,10 +106,10 @@
 					<Button type="submit">Save Changes</Button>
 				</form>
 
-				<div class="space-y-4 rounded-lg border border-destructive bg-destructive/5 p-4">
+				<div class="border-destructive bg-destructive/5 space-y-4 rounded-lg border p-4">
 					<div class="space-y-2">
 						<h3 class="font-semibold">Danger Zone</h3>
-						<p class="text-sm text-muted-foreground">
+						<p class="text-muted-foreground text-sm">
 							Deleting a team is a permanent action and cannot be undone.
 						</p>
 					</div>
@@ -117,7 +117,9 @@
 						method="POST"
 						action="?/delete"
 						onsubmit={(e) => {
-							if (!confirm('Are you sure you want to delete this team? This action is permanent.')) {
+							if (
+								!confirm('Are you sure you want to delete this team? This action is permanent.')
+							) {
 								e.preventDefault();
 							}
 						}}

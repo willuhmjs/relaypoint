@@ -15,8 +15,7 @@
 	// Import both custom input components
 	import DisplayGroupTeamInput from '$lib/components/DisplayGroupTeamInput.svelte';
 	import Displays from '$lib/components/Displays.svelte';
-	import { getContext } from 'svelte';
-	import type { Display, DisplayGroup, Team, User } from '@prisma/client';
+	import type { Display, DisplayGroup, Team } from '@prisma/client';
 
 	// Updated form type to include errors for displayIds
 	type Form_T = ActionData & {
@@ -30,9 +29,6 @@
 		};
 	};
 
-	const user = getContext<User | null>('user');
-	const displays = getContext<Display[] | null>('displays');
-
 	let { data, form }: { data: any; form: Form_T } = $props();
 
 	// Destructure all necessary data, including allDisplays
@@ -44,7 +40,6 @@
 	let useSharedTimeline = $state(false);
 	let name = $state('');
 	let selectedTeamIds = $state<string[]>([]);
-	let selectedDisplayIds = $state<string[]>([]); // Added state for displays
 	let isCreateDisplayDialogOpen = $state(false);
 
 	// Effect to initialize and update form state from loaded data
@@ -120,18 +115,22 @@
 
 					<div class="space-y-2 pt-2">
 						<div class="flex items-center space-x-2">
-							<Checkbox id="useSharedTimeline" name="useSharedTimeline" bind:checked={useSharedTimeline} />
+							<Checkbox
+								id="useSharedTimeline"
+								name="useSharedTimeline"
+								bind:checked={useSharedTimeline}
+							/>
 							<Label
 								for="useSharedTimeline"
-								class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-50"
+								class="text-sm leading-none font-medium peer-disabled:cursor-not-allowed peer-disabled:opacity-50"
 							>
 								Synchronize all presentations in this group
 							</Label>
 						</div>
-						<p class="text-sm text-muted-foreground">
+						<p class="text-muted-foreground text-sm">
 							When enabled, all displays in this group will share a single timeline, ensuring they
-							are perfectly in sync. Changing this setting will reset the timeline for all
-							displays in the group.
+							are perfectly in sync. Changing this setting will reset the timeline for all displays
+							in the group.
 						</p>
 					</div>
 
@@ -155,7 +154,7 @@
 				<div class="space-y-4 border-t pt-6">
 					<div class="space-y-2">
 						<h3 class="font-semibold">Immediate Actions</h3>
-						<p class="text-sm text-muted-foreground">
+						<p class="text-muted-foreground text-sm">
 							These actions take effect immediately and will impact all displays in the group.
 						</p>
 					</div>
@@ -216,7 +215,7 @@
 						<form
 							method="POST"
 							action="?/createDisplay"
-							use:enhance={({ formElement }) => {
+							use:enhance={() => {
 								return async ({ result, update }) => {
 									await update({ reset: false });
 									if (result.type === 'success') {
@@ -240,9 +239,7 @@
 									/>
 								</div>
 
-								<Button type="submit" class="pt-3">
-									Save
-								</Button>
+								<Button type="submit" class="pt-3">Save</Button>
 							</div>
 						</form>
 					</Dialog.Content>

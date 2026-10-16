@@ -49,7 +49,10 @@
 	let selectedTeams = $derived(
 		selectedTeamIds
 			.map((id: string) => allTeams.find((team: { id: string; name: string }) => team.id === id))
-			.filter((team: { id: string; name: string } | undefined): team is { id: string; name: string } => !!team)
+			.filter(
+				(team: { id: string; name: string } | undefined): team is { id: string; name: string } =>
+					!!team
+			)
 	);
 </script>
 
@@ -65,12 +68,12 @@
 
 	{#if showDropdown && filteredTeams.length > 0}
 		<ul
-			class="absolute z-10 mt-1 w-full max-h-60 overflow-auto rounded-md border bg-background shadow-lg"
+			class="bg-background absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md border shadow-lg"
 		>
 			{#each filteredTeams as team (team.id)}
 				<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 				<li
-					class="cursor-pointer px-4 py-2 hover:bg-accent hover:text-accent-foreground"
+					class="hover:bg-accent hover:text-accent-foreground cursor-pointer px-4 py-2"
 					onmousedown={() => addTeam(team)}
 				>
 					{team.name}
@@ -82,7 +85,7 @@
 	<div class="mt-4 flex flex-wrap gap-2">
 		{#each selectedTeams as team (team.id)}
 			<div
-				class="flex items-center rounded-full bg-primary px-3 py-1 text-sm text-primary-foreground"
+				class="bg-primary text-primary-foreground flex items-center rounded-full px-3 py-1 text-sm"
 			>
 				{team.name}
 				<Button
