@@ -30,7 +30,7 @@
 		"@sveltejs/vite-plugin-svelte": "^5.0.0",
 		"@tailwindcss/typography": "^0.5.20",
 		"@tailwindcss/vite": "^4.3.3",
-		"@types/bcrypt": "^5.0.2",
+		"@types/bcrypt": "^6.0.0",
 		"@types/node": "^24.0.12",
 		"@types/pg": "^8.23.1",
 		"@types/ua-parser-js": "^0.7.39",
