@@ -18,7 +18,7 @@ jobs:
     name: Type-check, build & lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v4
         with:
@@ -94,7 +94,7 @@ jobs:
       BODY_SIZE_LIMIT: 10M
       MAX_UPLOAD_BYTES_MB: '10'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v4
         with:
